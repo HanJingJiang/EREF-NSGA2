@@ -1,0 +1,110 @@
+import numpy as np
+import math
+import pandas as pd
+from sklearn import svm
+import heapq
+from sklearn.feature_selection import SelectKBest, SelectPercentile, mutual_info_classif, chi2
+from matplotlib import pyplot as plt
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.preprocessing import StandardScaler
+from sklearn.ensemble import ExtraTreesClassifier
+from sklearn.feature_selection import SelectFromModel
+
+def read_data(data_path):
+    data = pd.read_csv(data_path, header=None)
+    data = data.T
+    X = np.array(data.iloc[1:].values.T[1:], dtype=float)
+    y = list(data.iloc[0][1:])
+    name_genes = data[0].values[1:]
+    return X, y, name_genes
+X, y, name_genes = read_data('lca203.csv')
+
+scaler = StandardScaler()
+X = scaler.fit_transform(X)
+scaler = MinMaxScaler()
+scaler = scaler.fit(X)
+result = scaler.transform(X)
+print(pd.DataFrame(result))
+
+
+
+clf = ExtraTreesClassifier()
+clf = clf.fit(X, y)
+clf.feature_importances_
+model = SelectFromModel(clf, prefit=True)
+X_new = model.transform(X)
+X_new.shape 
+
+class NSGA2():
+    def __init__(self, all_genes, pop_size, max_generations, max_Ngen, features, labels):
+        self.all_genes = all_genes
+        self.pop_size = pop_size
+        self.max_generations = max_generations
+        self.max_Ngen = max_Ngen
+        self.features = features
+        self.labels = labels
+
+    def fast_non_dominated_sort(self, all_values):
+        values1, values2 = all_values[0], all_values[1]
+#         print(len(values1), len(values2))
+        S=[[] for i in range(0,len(values1))]
+        front = [[]]
+        n=[0 for i in range(0,len(values1))]
+        rank = [0 for i in range(0, len(values1))]
+
+        for p in range(0,len(values1)):
+            S[p]=[]
+            n[p]=0
+            for q in range(0, len(values1)):
+                if (values1[p] > values1[q] and values2[p] > values2[q]) or\
+                        (values1[p] >= values1[q] and values2[p] > values2[q]) or\
+                        (values1[p] > values1[q] and values2[p] >= values2[q]):
+                    if q not in S[p]:
+                        S[p].append(q)
+                elif (values1[q] > values1[p] and values2[q] > values2[p]) or\
+                        (values1[q] >= values1[p] and values2[q] > values2[p]) or\
+                        (values1[q] > values1[p] and values2[q] >= values2[p]):
+                    n[p] = n[p] + 1
+            if n[p]==0:
+                rank[p] = 0
+                if p not in front[0]:
+                    front[0].append(p)
+
+        i = 0
+        while(front[i] != []):
+            Q=[]
+            for p in front[i]:
+                for q in S[p]:
+                    n[q] =n[q] - 1
+                    if( n[q]==0):
+                        rank[q]=i+1
+                        if q not in Q:
+                            Q.append(q)
+            i = i+1
+            front.append(Q)
+
+        del front[len(front)-1]
+#         print(n)
+        return front
+
+import warnings
+from sklearn.model_selection import StratifiedKFold
+warnings.filterwarnings("ignore")
+#df = df.values
+i = 0
+while i < 25:
+    nsga2 = NSGA2(all_genes=final_genes, pop_size=160, max_generations=25, max_Ngen=10,features=df, labels=np.array(y))
+    solutions = nsga2.execute()
+    
+    accs = [nsga2.function1(solution) for solution in solutions]
+    nums = [len(solution) for solution in solutions]
+    plt.xlabel('accuracy', fontsize=15)
+    plt.ylabel('num_genes', fontsize=15)
+    plt.scatter(accs, nums)
+    plt.show()
+    f1_values = [nsga2.function1(solution) for solution in solutions]
+    f2_values = [nsga2.function2(solution) for solution in solutions]
+    scores = 0.95 * np.array(f1_values) + 0.05 * np.array(f2_values)
+    print('the best one is: accuracy is ', accs[np.argmax(scores)], ', num of genes is ', nums[np.argmax(scores)])
+    print('selected genes are: ', name_genes[solutions[np.argmax(scores)]])
+    i = i +1
